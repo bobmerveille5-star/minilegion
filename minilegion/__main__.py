@@ -81,6 +81,44 @@ def cmd_brief(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_design(args: argparse.Namespace) -> int:
+    project_root = Path.cwd()
+
+    try:
+        cfg = load_config(project_root)
+    except ConfigError as e:
+        print(str(e), file=sys.stderr)
+        return 1
+
+    ai_dir = project_root / cfg.project.ai_dir
+    state_path = ai_dir / "STATE.json"
+    if not state_path.exists():
+        print("Project not initialized. Run: python -m minilegion init", file=sys.stderr)
+        return 1
+
+    manager = StateManager(ai_dir)
+    try:
+        manager.check_stage(["briefed"])
+    except InvalidTransition as e:
+        print(str(e), file=sys.stderr)
+        return 1
+
+    option = args.option
+    if option is None or not str(option).strip():
+        print("Missing design option. Provide --option.", file=sys.stderr)
+        return 1
+
+    option = str(option).strip()
+
+    manager.update(design_option=option, next_step="research")
+    manager.transition("designed")
+
+    print("current_stage: designed")
+    print("next_step: research")
+    print(f"design_option: {option}")
+    return 0
+
+
 def cmd_status(args: argparse.Namespace) -> int:
     project_root = Path.cwd()
 
@@ -121,6 +159,10 @@ def build_parser() -> argparse.ArgumentParser:
     p_brief = sub.add_parser("brief", help="Brief the project (requires a goal)")
     p_brief.add_argument("--goal", help="Set/override the project goal")
     p_brief.set_defaults(_handler=cmd_brief)
+
+    p_design = sub.add_parser("design", help="Choose a design option (requires briefed)")
+    p_design.add_argument("--option", help="Set the design option")
+    p_design.set_defaults(_handler=cmd_design)
 
     p_status = sub.add_parser("status", help="Show current project status")
     p_status.set_defaults(_handler=cmd_status)
