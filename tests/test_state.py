@@ -5,6 +5,7 @@ import uuid
 from pathlib import Path
 
 from minilegion.memory.state import InvalidTransition, StateManager
+from tests.tmpdirs import temp_dir
 
 
 class StateManagerTests(unittest.TestCase):
@@ -88,15 +89,13 @@ class StateManagerTests(unittest.TestCase):
 if __name__ == "__main__":
     unittest.main()
 
-import tempfile
-
 from minilegion.runtime import runtime_for_project
 
 
 class RuntimeIntegrationTests(unittest.TestCase):
     def test_runtime_uses_ai_dir_from_project_override(self):
-        with tempfile.TemporaryDirectory() as d:
-            root = Path(d)
+        repo_root = Path(__file__).resolve().parents[1]
+        with temp_dir(repo_root / "tests_tmp") as root:
             (root / "minilegion.yaml").write_text(
                 """
 project:
