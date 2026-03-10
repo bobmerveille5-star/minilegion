@@ -1,14 +1,14 @@
 import unittest
 from pathlib import Path
-import tempfile
 
 from minilegion.config import ConfigError, load_config
+from tests.tmpdirs import temp_dir
 
 
 class ConfigTests(unittest.TestCase):
     def test_load_config_works_with_defaults_only(self):
-        with tempfile.TemporaryDirectory() as d:
-            root = Path(d)
+        repo_root = Path(__file__).resolve().parents[1]
+        with temp_dir(repo_root / "tests_tmp") as root:
             cfg = load_config(root)
             self.assertEqual(cfg.project.ai_dir, "project-ai")
             self.assertEqual(cfg.project.mode, "safe")
@@ -17,8 +17,8 @@ class ConfigTests(unittest.TestCase):
             self.assertIn("openai", cfg.llm.adapters)
 
     def test_project_override_deep_merges_and_replaces_lists(self):
-        with tempfile.TemporaryDirectory() as d:
-            root = Path(d)
+        repo_root = Path(__file__).resolve().parents[1]
+        with temp_dir(repo_root / "tests_tmp") as root:
             (root / "minilegion.yaml").write_text(
                 """
 project:
@@ -37,8 +37,8 @@ llm:
             self.assertEqual(cfg.llm.fallback_chain, ["openai", "openai"])
 
     def test_unknown_keys_fail_validation(self):
-        with tempfile.TemporaryDirectory() as d:
-            root = Path(d)
+        repo_root = Path(__file__).resolve().parents[1]
+        with temp_dir(repo_root / "tests_tmp") as root:
             (root / "minilegion.yaml").write_text(
                 """
 llm:
