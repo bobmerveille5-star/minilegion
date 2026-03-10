@@ -87,3 +87,23 @@ class StateManagerTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+import tempfile
+
+from minilegion.runtime import runtime_for_project
+
+
+class RuntimeIntegrationTests(unittest.TestCase):
+    def test_runtime_uses_ai_dir_from_project_override(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            (root / "minilegion.yaml").write_text(
+                """
+project:
+  ai_dir: custom-ai
+""".lstrip(),
+                encoding="utf-8",
+            )
+
+            rt = runtime_for_project(root)
+            self.assertTrue(str(rt.ai_dir).endswith("custom-ai"))
