@@ -1,0 +1,25 @@
+llm:
+  default_adapter: openai
+  adapters:
+    openai:
+      provider: openai
+      model: gpt-4o
+      max_tokens: 4000
+      temperature: 0.2
+  role_routing:
+    planner: openai
+    builder: openai
+    reviewer: openai
+  fallback_chain:
+    - openai
+
+project:
+  ai_dir: project-ai
+  mode: safe
+
+guards:
+  scope_lock: true
+  plan_required: true
+  review_separate: true
+  human_approval: true
+  max_revise_cycles: 3

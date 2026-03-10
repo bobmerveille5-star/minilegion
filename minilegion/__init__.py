@@ -1,0 +1,1 @@
+"""Minilegion package."""
