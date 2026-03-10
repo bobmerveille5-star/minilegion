@@ -1,95 +1,30 @@
-import json
-import os
-import subprocess
-import sys
-import tempfile
-import unittest
-from pathlib import Path
+# Minilegion CLI (brief) Implementation Plan
 
+> **For agentic workers:** REQUIRED: Use superpowers:subagent-driven-development (if subagents available) or superpowers:executing-plans to implement this plan. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-def _run_cli(repo_root: Path, cwd: Path, *args: str) -> subprocess.CompletedProcess:
-    env = os.environ.copy()
-    py_path = str(repo_root)
-    if env.get("PYTHONPATH"):
-        py_path = py_path + os.pathsep + env["PYTHONPATH"]
-    env["PYTHONPATH"] = py_path
+**Goal:** Add `python -m minilegion brief [--goal "..."]` that requires a non-empty goal, enforces stage preconditions, sets `next_step=design`, and transitions to `briefed`.
 
-    return subprocess.run(
-        [sys.executable, "-m", "minilegion", *args],
-        cwd=str(cwd),
-        env=env,
-        capture_output=True,
-        text=True,
-    )
+**Architecture:** Extend the existing `argparse` CLI in `minilegion/__main__.py`. Implement `cmd_brief()` using `load_config(Path.cwd())`, resolve `ai_dir`, then use `StateManager` to `check_stage(["initialized"])`, validate goal, `update(goal=..., next_step="design")`, and `transition("briefed")`. Tests extend `tests/test_cli.py` and run the CLI via `subprocess` with `PYTHONPATH` pointing to repo root.
 
+**Tech Stack:** Python 3.12, `unittest`, `argparse`, `subprocess`.
 
-class CLITests(unittest.TestCase):
-    def test_init_creates_state_in_default_ai_dir_and_uses_folder_name(self):
-        repo_root = Path(__file__).resolve().parents[1]
-        with tempfile.TemporaryDirectory() as d:
-            root = Path(d) / "demo-project"
-            root.mkdir(parents=True)
+---
 
-            res = _run_cli(repo_root, root, "init")
-            self.assertEqual(res.returncode, 0, res.stderr)
+## File Structure (locked-in)
 
-            state_path = root / "project-ai" / "STATE.json"
-            self.assertTrue(state_path.exists())
-            data = json.loads(state_path.read_text(encoding="utf-8"))
-            self.assertEqual(data["project_name"], "demo-project")
+- Modify: `minilegion/__main__.py`
+- Modify: `tests/test_cli.py`
 
-    def test_init_fails_if_state_already_exists(self):
-        repo_root = Path(__file__).resolve().parents[1]
-        with tempfile.TemporaryDirectory() as d:
-            root = Path(d) / "demo-project"
-            root.mkdir(parents=True)
+## Task 1: Tests for `brief` (RED)
 
-            res1 = _run_cli(repo_root, root, "init")
-            self.assertEqual(res1.returncode, 0, res1.stderr)
+**Files:**
+- Modify: `tests/test_cli.py`
 
-            res2 = _run_cli(repo_root, root, "init")
-            self.assertNotEqual(res2.returncode, 0)
+- [ ] **Step 1: Add failing tests**
 
-    def test_status_fails_if_state_missing(self):
-        repo_root = Path(__file__).resolve().parents[1]
-        with tempfile.TemporaryDirectory() as d:
-            root = Path(d) / "demo-project"
-            root.mkdir(parents=True)
+Append to `tests/test_cli.py` (inside `CLITests`):
 
-            res = _run_cli(repo_root, root, "status")
-            self.assertNotEqual(res.returncode, 0)
-
-    def test_status_prints_summary_when_initialized(self):
-        repo_root = Path(__file__).resolve().parents[1]
-        with tempfile.TemporaryDirectory() as d:
-            root = Path(d) / "demo-project"
-            root.mkdir(parents=True)
-
-            res1 = _run_cli(repo_root, root, "init")
-            self.assertEqual(res1.returncode, 0, res1.stderr)
-
-            res2 = _run_cli(repo_root, root, "status")
-            self.assertEqual(res2.returncode, 0, res2.stderr)
-            self.assertIn("current_stage", res2.stdout)
-            self.assertIn("initialized", res2.stdout)
-
-    def test_init_respects_project_override_ai_dir(self):
-        repo_root = Path(__file__).resolve().parents[1]
-        with tempfile.TemporaryDirectory() as d:
-            root = Path(d) / "demo-project"
-            root.mkdir(parents=True)
-            (root / "minilegion.yaml").write_text(
-                """
-project:
-  ai_dir: custom-ai
-""".lstrip(),
-                encoding="utf-8",
-            )
-
-            res = _run_cli(repo_root, root, "init")
-            self.assertEqual(res.returncode, 0, res.stderr)
-            self.assertTrue((root / "custom-ai" / "STATE.json").exists())
-
+```python
     def test_brief_fails_if_state_missing(self):
         repo_root = Path(__file__).resolve().parents[1]
         with tempfile.TemporaryDirectory() as d:
@@ -168,7 +103,58 @@ project:
             res = _run_cli(repo_root, root, "brief", "--goal", "Ship Sprint 1")
             self.assertEqual(res.returncode, 0, res.stderr)
             self.assertTrue((root / "custom-ai" / "STATE.json").exists())
+```
 
+- [ ] **Step 2: Run tests to verify failure**
 
-if __name__ == "__main__":
-    unittest.main()
+Run:
+
+```powershell
+cd "D:\pln kiro\test powers\test4\.worktrees\cli-brief"
+python -m unittest -v tests.test_cli
+```
+
+Expected: FAIL (unknown command `brief`).
+
+## Task 2: Implement `brief` (GREEN)
+
+**Files:**
+- Modify: `minilegion/__main__.py`
+
+- [ ] **Step 1: Implement handler + subcommand**
+
+In `minilegion/__main__.py`:
+
+- Add `cmd_brief(args)` implementing:
+  - load config
+  - compute `ai_dir`
+  - require state exists
+  - `manager.check_stage(["initialized"])`
+  - goal = `args.goal` or existing `state["goal"]` if non-empty else error
+  - `manager.update(goal=goal, next_step="design")`
+  - `manager.transition("briefed")`
+- Wire subcommand:
+  - `brief` with optional `--goal`
+
+- [ ] **Step 2: Re-run CLI tests**
+
+```powershell
+python -m unittest -v tests.test_cli
+```
+
+Expected: PASS.
+
+- [ ] **Step 3: Run full suite**
+
+```powershell
+python -m unittest -v
+```
+
+Expected: PASS.
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add minilegion/__main__.py tests/test_cli.py
+git commit -m "feat(cli): add brief command"
+```
