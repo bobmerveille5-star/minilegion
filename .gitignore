@@ -1,0 +1,16 @@
+# Worktrees
+.worktrees/
+worktrees/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+
+# Local test artifacts
+tests_tmp/
+
+# Editor / OS
+.DS_Store
+Thumbs.db
