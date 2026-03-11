@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 from pathlib import Path
 
@@ -119,6 +120,74 @@ def cmd_design(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_research(args: argparse.Namespace) -> int:
+    project_root = Path.cwd()
+
+    try:
+        cfg = load_config(project_root)
+    except ConfigError as e:
+        print(str(e), file=sys.stderr)
+        return 1
+
+    ai_dir = project_root / cfg.project.ai_dir
+    state_path = ai_dir / "STATE.json"
+    if not state_path.exists():
+        print("Project not initialized. Run: python -m minilegion init", file=sys.stderr)
+        return 1
+
+    manager = StateManager(ai_dir)
+    try:
+        manager.check_stage(["designed"])
+    except InvalidTransition as e:
+        print(str(e), file=sys.stderr)
+        return 1
+
+    raw_files = getattr(args, "files", None) or []
+    raw_files = [str(f) for f in raw_files]
+    if not raw_files:
+        print("Missing files. Provide at least one --file.", file=sys.stderr)
+        return 1
+
+    project_root_resolved = project_root.resolve()
+    canonical: list[str] = []
+
+    for raw in raw_files:
+        raw = str(raw).strip()
+        if not raw:
+            print("Missing files. Provide at least one --file.", file=sys.stderr)
+            return 1
+
+        p = Path(raw)
+        if not p.is_absolute():
+            p = project_root / p
+
+        resolved = p.resolve()
+        if not resolved.exists() or not resolved.is_file():
+            print(f"File not found: {raw}", file=sys.stderr)
+            return 1
+
+        try:
+            rel = resolved.relative_to(project_root_resolved)
+        except ValueError:
+            print(f"File must be under project root: {raw}", file=sys.stderr)
+            return 1
+
+        canonical.append(rel.as_posix())
+
+    manager.update(
+        files_for_plan=canonical,
+        research_validated=True,
+        next_step="plan",
+    )
+    manager.transition("researched")
+
+    print("current_stage: researched")
+    print("next_step: plan")
+    print(f"files_for_plan_count: {len(canonical)}")
+    print(f"files_for_plan: {json.dumps(canonical, ensure_ascii=False)}")
+    return 0
+
+
 def cmd_status(args: argparse.Namespace) -> int:
     project_root = Path.cwd()
 
@@ -163,6 +232,17 @@ def build_parser() -> argparse.ArgumentParser:
     p_design = sub.add_parser("design", help="Choose a design option (requires briefed)")
     p_design.add_argument("--option", help="Set the design option")
     p_design.set_defaults(_handler=cmd_design)
+
+    p_research = sub.add_parser(
+        "research", help="Provide files to inform planning (requires designed)"
+    )
+    p_research.add_argument(
+        "--file",
+        dest="files",
+        action="append",
+        help="Add a file to the planning input list (repeatable)",
+    )
+    p_research.set_defaults(_handler=cmd_research)
 
     p_status = sub.add_parser("status", help="Show current project status")
     p_status.set_defaults(_handler=cmd_status)
