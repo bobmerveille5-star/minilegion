@@ -212,6 +212,110 @@ project:
             self.assertEqual(res.returncode, 0, res.stderr)
             self.assertTrue((root / "custom-ai" / "STATE.json").exists())
 
+    def test_research_fails_if_state_missing(self):
+        repo_root = Path(__file__).resolve().parents[1]
+        with temp_project_dir(repo_root) as root:
+            res = _run_cli(repo_root, root, "research", "--file", "docs/a.md")
+            self.assertNotEqual(res.returncode, 0)
+
+    def test_research_fails_if_stage_not_designed(self):
+        repo_root = Path(__file__).resolve().parents[1]
+        with temp_project_dir(repo_root) as root:
+            res_init = _run_cli(repo_root, root, "init")
+            self.assertEqual(res_init.returncode, 0, res_init.stderr)
+
+            res = _run_cli(repo_root, root, "research", "--file", "docs/a.md")
+            self.assertNotEqual(res.returncode, 0)
+
+    def test_research_fails_if_file_missing_and_does_not_mutate_stage(self):
+        repo_root = Path(__file__).resolve().parents[1]
+        with temp_project_dir(repo_root) as root:
+            res_init = _run_cli(repo_root, root, "init")
+            self.assertEqual(res_init.returncode, 0, res_init.stderr)
+
+            res_brief = _run_cli(repo_root, root, "brief", "--goal", "Ship Sprint 1")
+            self.assertEqual(res_brief.returncode, 0, res_brief.stderr)
+
+            res_design = _run_cli(repo_root, root, "design", "--option", "Option A")
+            self.assertEqual(res_design.returncode, 0, res_design.stderr)
+
+            res = _run_cli(repo_root, root, "research")
+            self.assertNotEqual(res.returncode, 0)
+
+            state_path = root / "project-ai" / "STATE.json"
+            data = json.loads(state_path.read_text(encoding="utf-8"))
+            self.assertEqual(data["current_stage"], "designed")
+
+    def test_research_fails_if_file_missing_on_disk_and_does_not_mutate_stage(self):
+        repo_root = Path(__file__).resolve().parents[1]
+        with temp_project_dir(repo_root) as root:
+            res_init = _run_cli(repo_root, root, "init")
+            self.assertEqual(res_init.returncode, 0, res_init.stderr)
+
+            res_brief = _run_cli(repo_root, root, "brief", "--goal", "Ship Sprint 1")
+            self.assertEqual(res_brief.returncode, 0, res_brief.stderr)
+
+            res_design = _run_cli(repo_root, root, "design", "--option", "Option A")
+            self.assertEqual(res_design.returncode, 0, res_design.stderr)
+
+            res = _run_cli(repo_root, root, "research", "--file", "docs/does-not-exist.md")
+            self.assertNotEqual(res.returncode, 0)
+
+            state_path = root / "project-ai" / "STATE.json"
+            data = json.loads(state_path.read_text(encoding="utf-8"))
+            self.assertEqual(data["current_stage"], "designed")
+
+    def test_research_succeeds_from_designed_and_sets_next_step(self):
+        repo_root = Path(__file__).resolve().parents[1]
+        with temp_project_dir(repo_root) as root:
+            (root / "docs").mkdir(parents=True)
+            (root / "docs" / "a.md").write_text("ok", encoding="utf-8")
+
+            res_init = _run_cli(repo_root, root, "init")
+            self.assertEqual(res_init.returncode, 0, res_init.stderr)
+
+            res_brief = _run_cli(repo_root, root, "brief", "--goal", "Ship Sprint 1")
+            self.assertEqual(res_brief.returncode, 0, res_brief.stderr)
+
+            res_design = _run_cli(repo_root, root, "design", "--option", "Option A")
+            self.assertEqual(res_design.returncode, 0, res_design.stderr)
+
+            res = _run_cli(repo_root, root, "research", "--file", "docs/a.md")
+            self.assertEqual(res.returncode, 0, res.stderr)
+
+            state_path = root / "project-ai" / "STATE.json"
+            data = json.loads(state_path.read_text(encoding="utf-8"))
+            self.assertEqual(data["current_stage"], "researched")
+            self.assertTrue(data["research_validated"])
+            self.assertEqual(data["files_for_plan"], ["docs/a.md"])
+            self.assertEqual(data["next_step"], "plan")
+
+    def test_research_respects_project_override_ai_dir(self):
+        repo_root = Path(__file__).resolve().parents[1]
+        with temp_project_dir(repo_root) as root:
+            (root / "minilegion.yaml").write_text(
+                """
+project:
+  ai_dir: custom-ai
+""".lstrip(),
+                encoding="utf-8",
+            )
+            (root / "docs").mkdir(parents=True)
+            (root / "docs" / "a.md").write_text("ok", encoding="utf-8")
+
+            res_init = _run_cli(repo_root, root, "init")
+            self.assertEqual(res_init.returncode, 0, res_init.stderr)
+
+            res_brief = _run_cli(repo_root, root, "brief", "--goal", "Ship Sprint 1")
+            self.assertEqual(res_brief.returncode, 0, res_brief.stderr)
+
+            res_design = _run_cli(repo_root, root, "design", "--option", "Option A")
+            self.assertEqual(res_design.returncode, 0, res_design.stderr)
+
+            res = _run_cli(repo_root, root, "research", "--file", "docs/a.md")
+            self.assertEqual(res.returncode, 0, res.stderr)
+            self.assertTrue((root / "custom-ai" / "STATE.json").exists())
+
 
 if __name__ == "__main__":
     unittest.main()
